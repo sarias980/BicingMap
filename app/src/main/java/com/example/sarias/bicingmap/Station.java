@@ -7,8 +7,8 @@ package com.example.sarias.bicingmap;
 public class Station {
     private int idNum;
     private String type;
-    private double latitude;
-    private double longitude;
+    private String latitude;
+    private String longitude;
     private String streetName;
     private int streetNumber;
     private int altitude;
@@ -32,19 +32,19 @@ public class Station {
         this.type = type;
     }
 
-    public double getLatitude() {
+    public String getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(double latitude) {
+    public void setLatitude(String latitude) {
         this.latitude = latitude;
     }
 
-    public double getLongitude() {
+    public String getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(double longitude) {
+    public void setLongitude(String longitude) {
         this.longitude = longitude;
     }
 

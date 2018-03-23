@@ -53,8 +53,8 @@ public class BikeAPI {
                 Station station = new Station();
                 if(jsonstation.has("id")){station.setIdNum(jsonstation.getInt("id"));}
                 if(jsonstation.has("type")){station.setType(jsonstation.getString("type"));}
-                if(jsonstation.has("latitude")){station.setLatitude(jsonstation.getInt("latitude"));}
-                if(jsonstation.has("longitude")){station.setLongitude(jsonstation.getInt("longitude"));}
+                if(jsonstation.has("latitude")){station.setLatitude(jsonstation.getString("latitude"));}
+                if(jsonstation.has("longitude")){station.setLongitude(jsonstation.getString("longitude"));}
                 if(jsonstation.has("streetName")){station.setStreetName(jsonstation.getString("streetName"));}
                 if(jsonstation.has("streetNumber")){station.setStreetNumber(jsonstation.getInt("streetNumber"));}
                 if(jsonstation.has("altitude")){station.setAltitude(jsonstation.getInt("altitude"));}

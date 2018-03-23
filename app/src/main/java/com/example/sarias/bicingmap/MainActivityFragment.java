@@ -1,9 +1,13 @@
 package com.example.sarias.bicingmap;
 
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.StrictMode;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -11,10 +15,17 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import org.osmdroid.api.IMapController;
+import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.MinimapOverlay;
+import org.osmdroid.views.overlay.ScaleBarOverlay;
+import org.osmdroid.views.overlay.compass.CompassOverlay;
+import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider;
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.util.ArrayList;
 
@@ -22,10 +33,14 @@ import java.util.ArrayList;
  * A placeholder fragment containing a simple view.
  */
 public class MainActivityFragment extends Fragment {
-    ArrayList<Station> result;
-    MapView map;
-    GeoPoint startPoint;
-    Marker startMarker;
+    private ArrayList<Station> result;
+    private MapView map;
+    private MyLocationNewOverlay myLocationOverlay;
+    private ScaleBarOverlay mScaleBarOverlay;
+    private CompassOverlay mCompassOverlay;
+    private IMapController mapController;
+    private RadiusMarkerClusterer bicingMarkers;
+
 
     public MainActivityFragment() {
     }
@@ -38,52 +53,73 @@ public class MainActivityFragment extends Fragment {
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
-            map = (MapView) view.findViewById(R.id.map);
+        map = (MapView) view.findViewById(R.id.map);
+        this.result= new ArrayList<>();
 
-            initialMap();
-            setZoom();
-            setMarker();
+        initialMap();
+        setZoom();
+        setOverlays();
+        setMarker();
 
         return view;
     }
 
     private void setMarker() {
-        startMarker = new Marker(map);
-        startMarker.setPosition(startPoint);
-        startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
-        map.getOverlays().add(startMarker);
+        bicingMarkers= new RadiusMarkerClusterer(getContext());
+        map.getOverlays().add(bicingMarkers);
 
-        for (int i = 0; i < result.size(); i++) {
-            Station station = result.get(i);
+        Drawable clusterIconD = getResources().getDrawable(R.drawable.moreinfo_arrow);
+        Bitmap clusterIcon = ((BitmapDrawable)clusterIconD).getBitmap();
 
-            GeoPoint position = new GeoPoint(station.getLatitude(), station.getLongitude());
-            startMarker.setPosition(position);
-            startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
-            map.getOverlays().add(startMarker);
+        bicingMarkers.setIcon(clusterIcon);
+        bicingMarkers.setRadius(100);
 
-            map.invalidate();
-            startMarker.setIcon(getResources().getDrawable(R.mipmap.ic_bicing));
-            startMarker.setTitle("Start point");
-
-        }
-
+        RefreshDataTask refreshDataTask = new RefreshDataTask();
+        refreshDataTask.execute();
     }
 
     private void setZoom() {
-        startPoint = new GeoPoint(41.3903508, 2.1330763);
-        IMapController mapController = map.getController();
-        mapController.setZoom(17);
-        mapController.setCenter(startPoint);
+        mapController = map.getController();
+        mapController.setZoom(14);
 
     }
 
     private void initialMap() {
-        map.setTileSource(TileSourceFactory.MAPNIK);
+        map.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
+        map.setTilesScaledToDpi(true);
         map.setBuiltInZoomControls(true);
         map.setMultiTouchControls(true);
     }
 
+    private void setOverlays() {
+        final DisplayMetrics dm = getResources().getDisplayMetrics();
 
+        myLocationOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(this.getActivity()
+        ), map);
+        myLocationOverlay.enableMyLocation();
+        myLocationOverlay.runOnFirstFix(new Runnable() {
+            public void run() {
+                mapController.animateTo(myLocationOverlay
+                        .getMyLocation());
+            }
+        });
+
+        mScaleBarOverlay = new ScaleBarOverlay(map);
+        mScaleBarOverlay.setCentred(true);
+        mScaleBarOverlay.setScaleBarOffset(dm.widthPixels / 2, 10);
+
+        mCompassOverlay = new CompassOverlay(
+                getContext(),
+                new InternalCompassOrientationProvider(getContext()),
+                map
+        );
+        mCompassOverlay.enableCompass();
+
+        map.getOverlays().add(myLocationOverlay);
+        map.getOverlays().add(this.mScaleBarOverlay);
+        map.getOverlays().add(this.mCompassOverlay);
+    }
+    
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle action bar item clicks here. The action bar will
@@ -100,26 +136,76 @@ public class MainActivityFragment extends Fragment {
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        Log.d("result", "Hola");
-        refresh();
-    }
-
     private void refresh() {
-        RefreshDataTask task = new RefreshDataTask();
-        task.execute();
+        initialMap();
+        setZoom();
+        setOverlays();
+        setMarker();
     }
 
-    private class RefreshDataTask extends AsyncTask<Void, Void, Void> {
+    private class RefreshDataTask extends AsyncTask<Void, Void, ArrayList<Station>> {
         @Override
-        protected Void doInBackground(Void... voids) {
+        protected void onPostExecute(ArrayList<Station> stations) {
+
+            for(Station station : stations) {
+                Marker marker = new Marker(map);
+                GeoPoint point = new GeoPoint(
+                        Double.parseDouble(station.getLatitude()),
+                        Double.parseDouble(station.getLongitude())
+                );
+
+                Log.d("GeoAAA", point.toString());
+
+                marker.setPosition(point);
+
+                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+
+                int valor = (station.getBikes() * 100);
+                int porcentaje =  0;
+
+                try {
+                    porcentaje = valor / station.getSlots();
+                } catch (Exception e) {
+
+                }
+
+                marker.setTitle(station.getStreetName());
+                String description = "Bicis libres: " + station.getBikes();
+
+                if(station.getType().toLowerCase().contains("electric"))
+                    description = description.concat(" - ELECTRICA");
+
+                marker.setSubDescription(description);
+                marker.setAlpha(0.6f);
+
+                if(porcentaje == 0) {
+                    marker.setIcon(getResources().getDrawable(R.drawable.ic_action_00));
+                } else if (porcentaje > 0 && porcentaje <= 25) {
+                    marker.setIcon(getResources()
+                            .getDrawable(R.drawable.ic_action_25));
+                } else if (porcentaje > 25 && porcentaje <= 50) {
+                    marker.setIcon(getResources()
+                            .getDrawable(R.drawable.ic_action_50));
+                } else if (porcentaje > 50 && porcentaje <= 75) {
+                    marker.setIcon(getResources()
+                            .getDrawable(R.drawable.ic_action_75));
+                } else {
+                    marker.setIcon(getResources()
+                            .getDrawable(R.drawable.ic_action_100));
+                }
+                bicingMarkers.add(marker);
+            }
+
+            bicingMarkers.invalidate();
+            map.invalidate();
+        }
+
+        @Override
+        protected ArrayList<Station> doInBackground(Void... voids) {
             BikeAPI api = new BikeAPI();
             result = api.getStations();
-            Log.d("Hola", result.toString());
 
-            return null;
+            return result;
         }
     }
 
